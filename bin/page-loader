@@ -1,0 +1,30 @@
+#!/usr/bin/env php
+<?php
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+$dir = dirname(__DIR__);
+
+$doc = <<<DOC
+Download HTML page
+
+Usage:
+  page-loader (-h|--help)
+  page-loader [-o|--output <dir>] <url>
+  page-loader (-v|--version)
+  
+Options:
+  -h --help                     Show this screen
+  -v --version                  Show version
+  -o --output <dir>             Output dir [default: {$dir}]
+DOC;
+
+$args = Docopt::handle($doc, ['version' => '0.0.1']);
+
+$url = $args->args['<url>'];
+$outputDir = implode('', $args['--output'] ?? $dir);
+
+//var_dump($url);
+//var_dump($outputDir);
+
+echo("\nPage was successfully downloaded into " . downloadPage($url, $outputDir) . "\n");

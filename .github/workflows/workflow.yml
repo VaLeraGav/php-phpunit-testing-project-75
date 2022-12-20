@@ -1,0 +1,39 @@
+name: linter and tests
+
+on:
+  push:
+    branches:
+      [ main ]
+  pull_request:
+    branches:
+      [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        php-versions: [ '8.1' ]
+        steps:
+          - uses: actions/checkout@v3
+
+          - name: Setup PHP ${{ matrix.php-versions }}
+            uses: shivammathur/setup-php@v2
+            with:
+              php-version: ${{ matrix.php-versions }}
+
+          - name: Install
+            run: make install
+
+          - name: Run linter
+            run: make lint
+
+          - name: Run test & publish code coverage
+            uses: paambaati/codeclimate-action@v2.6.0
+            env:
+              CC_TEST_REPORTER_ID: ${{ secrets.CC_TEST_REPORTER_ID }}
+            with:
+              coverageCommand: make test-coverage
+              coverageLocations: ${{github.workplace}}/build/logs/clover.xml:clover
+              debug: true
