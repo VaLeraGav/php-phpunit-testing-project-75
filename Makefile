@@ -1,3 +1,9 @@
+start:
+	./bin/page-loader https://habr.com/ru/post/137664/ -o /mnt/c/Users/Ucer/Desktop/Hexlet/php-testing-project-75/tmp
+
+start-2:
+	./bin/page-loader https://ru.hexlet.io/courses -o /mnt/c/Users/Ucer/Desktop/Hexlet/php-testing-project-75/tmp
+
 install:
 	composer install
 

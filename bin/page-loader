@@ -27,4 +27,5 @@ $outputDir = implode('', $args['--output'] ?? $dir);
 //var_dump($url);
 //var_dump($outputDir);
 
-echo("\nPage was successfully downloaded into " . downloadPage($url, $outputDir) . "\n");
+print_r(downloadPage($url, $outputDir));
+
