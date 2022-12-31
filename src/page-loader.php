@@ -1,15 +1,16 @@
 <?php
 
-use App\PageLoader\PageLoader;
-use App\Client\Client;
-use GuzzleHttp\Client as GuzzleClient;
+use App\PageLoader;
 
 function downloadPage(string $url, string $outputDir)
 {
-    $clientClass = new Client(new GuzzleClient());
+        try {
+        $loader = new PageLoader($url, $outputDir);
 
-    try {
-        $resource = PageLoader::getDownloadedHtmlPath($url, $outputDir, $clientClass);
+        // start processing
+        $loader->filesProcessing();
+
+        $resource = $loader->getDownloadedHtmlPath();
     } catch (\Exception $e) {
         throw new \Exception('Caught Exception: ', $e->getMessage());
     }
