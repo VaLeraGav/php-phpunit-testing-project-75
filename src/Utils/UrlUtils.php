@@ -17,18 +17,9 @@ class UrlUtils
     // page-loader https://ru.hexlet.io/courses -o /var/tmp
     // /var/tmp/ru-hexlet-io-courses.html.html # путь к загруженному файлу
 
-    public function normalizeUrl(string $url)
+    public function getLocationFullPath(string $normUrl, string $outputDir)
     {
-        $host = (string)parse_url($url, PHP_URL_HOST);
-        $path = (string)parse_url($url, PHP_URL_PATH);
-
-        return strtr("{$host}{$path}", ['.' => '-', '/' => '-']);
-    }
-
-    public function getLocationFullPath(string $normUrl, string $outputDir, string $extensions = ".html")
-    {
-        $path = $outputDir . $normUrl . '.' . $extensions;
-        return $path;
+        return $outputDir . $normUrl;
     }
 
 }
