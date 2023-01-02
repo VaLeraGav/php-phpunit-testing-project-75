@@ -67,34 +67,46 @@ class PageLoader
             // разбить на методы
             // сделать так, чтобы при нахождении сразу менялся путь, проходил по htmlAsStr только 3 раза
             foreach ($files as $file) {
-                $modifiedPath = $filesDir . '/' . $this->normUrl . $this->normalizeUrl($file);
                 $path_parts = pathinfo($file);
+
+                $nameFile = $this->normUrl . $this->normalizeUrl($file);
+                $modifiedPath = $filesDir . '/' . $nameFile;
+
                 if (!empty($path_parts['extension'])) {
                     if ($createExtension) {
                         @mkdir($filesDir . '/' . $path_parts['extension']);
-                        $modifiedPath = $filesDir . '/' . $path_parts['extension'] . '/' . $this->normUrl . $this->normalizeUrl(
-                                $file
-                            );
+                        $modifiedPath = $filesDir . '/' . $path_parts['extension'] . '/' . $nameFile;
                     }
-                    $dir = $modifiedPath . '.' . $path_parts['extension'];
-                    $this->client->request('GET', $file, ['sink' => $dir]);
 
-                    // записывает весь путь
-                    $this->htmlAsStr = str_replace($file, $dir, $this->htmlAsStr);
+                    print_r($nameFile . '_files' . "\n");
 
+                    $fullDir = $modifiedPath . '.' . $path_parts['extension'];
+                    $this->client->request('GET', $file, ['sink' => $fullDir]);
+
+                    // заменяет юрл
+                    $this->htmlAsStr = str_replace(
+                        $file,
+                        $this->normUrl . '_files' . '/' . $path_parts['extension'] . '/' . $nameFile . '.' . $path_parts['extension'],
+                        $this->htmlAsStr
+                    );
                 } else {
-
                     // создает пустой файл для ссылок
                     file_put_contents($modifiedPath, '');
-                    $this->htmlAsStr = str_replace($file, $modifiedPath, $this->htmlAsStr);
+
+                    // заменяет юрл
+                    $this->htmlAsStr = str_replace(
+                        $file,
+                        $this->normUrl . '_files' . '/' . $nameFile,
+                        $this->htmlAsStr
+                    );
                     //var_dump($modifiedPath);
                 }
-
             }
-           $this->writeHtml($this->htmlAsStr);
+            $this->writeHtml($this->htmlAsStr);
         }
         //print_r($res2);
     }
+
 
     public function writeHtml(string $htmlAsStr): void
     {
