@@ -53,58 +53,66 @@ class PageLoader
     // создает файлы, а также папки для разных расширений
     public function createLocalResources(array $files, bool $createExtension = true)
     {
-        if (!empty($files)) {
-            $filesDir = $this->outputNameWithPath . '_files';
+        if (empty($files)) {
+            return null;
+        }
 
-            if (!file_exists($filesDir)) {
-                if (!mkdir($filesDir)) {
-                    $this->logger->error(
-                        "Failed to create dir \"$this->outputNameWithPath" . "_files\""
-                    );
+        $filesDir = $this->outputNameWithPath . '_files';
+        $nameDir = $this->normUrl . '_files';
+        // создание папки _files
+        print_r($nameDir . "\n");
+        if (!file_exists($filesDir)) {
+            if (!mkdir($filesDir)) {
+                $this->logger->error(
+                    "Failed to create dir \"$this->outputNameWithPath" . "_files\""
+                );
+            }
+        }
+
+        // разбить на методы
+        // сделать так, чтобы при нахождении сразу менялся путь, проходил по htmlAsStr только 3 раза
+        foreach ($files as $file) {
+            $pathParts = pathinfo($file);
+
+            $exten = $pathParts['extension'] ?? null;
+
+            $nameFile = $this->normUrl . $this->normalizeUrl($file);
+            $modifiedPath = $filesDir . '/' . $nameFile;
+
+            if (isset($exten)) {
+                if ($createExtension) {
+                    @mkdir($filesDir . '/' . $exten);
+                    $modifiedPath = $filesDir . '/' . $exten . '/' . $nameFile;
                 }
+
+                $fullDir = $modifiedPath . '.' . $exten;
+                $this->client->request('GET', $file, ['sink' => $fullDir]);
+
+                // заменяет юрл
+                $this->htmlAsStr = str_replace(
+                    $file,
+                    $nameDir . '/' . $exten . '/' . $nameFile . '.' . $exten,
+                    $this->htmlAsStr
+                );
+            } else {
+                // создает пустой файл для ссылок
+                file_put_contents($modifiedPath, '');
+
+                // заменяет юрл
+                $this->htmlAsStr = str_replace(
+                    $file,
+                    $nameDir . '/' . $nameFile,
+                    $this->htmlAsStr
+                );
             }
 
-            // разбить на методы
-            // сделать так, чтобы при нахождении сразу менялся путь, проходил по htmlAsStr только 3 раза
-            foreach ($files as $file) {
-                $path_parts = pathinfo($file);
-
-                $nameFile = $this->normUrl . $this->normalizeUrl($file);
-                $modifiedPath = $filesDir . '/' . $nameFile;
-
-                if (!empty($path_parts['extension'])) {
-                    if ($createExtension) {
-                        @mkdir($filesDir . '/' . $path_parts['extension']);
-                        $modifiedPath = $filesDir . '/' . $path_parts['extension'] . '/' . $nameFile;
-                    }
-
-                    print_r($nameFile . '_files' . "\n");
-
-                    $fullDir = $modifiedPath . '.' . $path_parts['extension'];
-                    $this->client->request('GET', $file, ['sink' => $fullDir]);
-
-                    // заменяет юрл
-                    $this->htmlAsStr = str_replace(
-                        $file,
-                        $this->normUrl . '_files' . '/' . $path_parts['extension'] . '/' . $nameFile . '.' . $path_parts['extension'],
-                        $this->htmlAsStr
-                    );
-                } else {
-                    // создает пустой файл для ссылок
-                    file_put_contents($modifiedPath, '');
-
-                    // заменяет юрл
-                    $this->htmlAsStr = str_replace(
-                        $file,
-                        $this->normUrl . '_files' . '/' . $nameFile,
-                        $this->htmlAsStr
-                    );
-                    //var_dump($modifiedPath);
-                }
-            }
             $this->writeHtml($this->htmlAsStr);
         }
         //print_r($res2);
+    }
+
+    public function createNameChange()
+    {
     }
 
 
