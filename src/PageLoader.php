@@ -2,11 +2,9 @@
 
 namespace App;
 
-use App\Utils\FileUtils;
-use App\Utils\UrlUtils;
-
 use GuzzleHttp\Client as GuzzleClient;
 use Monolog\Handler\StreamHandler;
+use Monolog\Level;
 use Monolog\Logger;
 
 class PageLoader
@@ -22,14 +20,19 @@ class PageLoader
 
     public function __construct(string $url, string $outputDir)
     {
-        $this->url = $url;
         $this->outDir = (str_ends_with($outputDir, '/')) ? $outputDir : $outputDir . '/';
 
-        $this->client = new GuzzleClient();
         $this->logger = new Logger('pl_logger');
-
-        $this->logger->pushHandler(new StreamHandler($this->outDir . 'page-loader.log', Logger::DEBUG));
+        $this->logger->pushHandler(new StreamHandler($this->outDir . 'page-loader.log', Level::Debug));
         $this->logger->info('Start pageloading');
+
+        $this->url = $url;
+        if ($this->isUrl($this->url) === false) {
+            $this->logger->error('Url incorrect');
+            throw new \Exception("Url incorrect\n");
+        }
+
+        $this->client = new GuzzleClient();
     }
 
     public function filesProcessing()
@@ -57,36 +60,33 @@ class PageLoader
             return null;
         }
 
+        // Убирает пути до файла в html указанные относительно
+        // добавить возможность $fileRoot = $this->url . $file;
+        // но root может начинаться с https://docs.guzzlephp.org/en/stable/request-options.html#sink
+        // как вариант разбить ссылку и взять из нее root, а потом подставлять,
+        // но есть вероятность, что на сайте root другой
+        $files = array_filter($files, fn($url) => $this->isUrl($url));
+
         $filesDir = $this->outputNameWithPath . '_files';
         $nameDir = $this->normUrl . '_files';
-        // создание папки _files
-        print_r($nameDir . "\n");
-        if (!file_exists($filesDir)) {
-            if (!mkdir($filesDir)) {
-                $this->logger->error(
-                    "Failed to create dir \"$this->outputNameWithPath" . "_files\""
-                );
-            }
-        }
 
-        // разбить на методы
-        // сделать так, чтобы при нахождении сразу менялся путь, проходил по htmlAsStr только 3 раза
+        // создание папки _files
+        $this->createDir($filesDir);
+
+
         foreach ($files as $file) {
             $pathParts = pathinfo($file);
-
             $exten = $pathParts['extension'] ?? null;
 
             $nameFile = $this->normUrl . $this->normalizeUrl($file);
-            $modifiedPath = $filesDir . '/' . $nameFile;
+            $fullDir = $filesDir . '/';
 
             if (isset($exten)) {
                 if ($createExtension) {
-                    @mkdir($filesDir . '/' . $exten);
-                    $modifiedPath = $filesDir . '/' . $exten . '/' . $nameFile;
+                    $this->createDir($filesDir . '/' . $exten);
+                    $fullDir .= $exten . '/';
                 }
-
-                $fullDir = $modifiedPath . '.' . $exten;
-                $this->client->request('GET', $file, ['sink' => $fullDir]);
+                $fullDir .= $nameFile . '.' . $exten;
 
                 // заменяет юрл
                 $this->htmlAsStr = str_replace(
@@ -95,8 +95,7 @@ class PageLoader
                     $this->htmlAsStr
                 );
             } else {
-                // создает пустой файл для ссылок
-                file_put_contents($modifiedPath, '');
+                $fullDir .= $nameFile;
 
                 // заменяет юрл
                 $this->htmlAsStr = str_replace(
@@ -105,16 +104,27 @@ class PageLoader
                     $this->htmlAsStr
                 );
             }
+            $this->client->request('GET', $file, ['sink' => $fullDir, 'http_errors' => false]);
+//              выводит ошибки 403 (curl)
+//            if(@$this->client->get($file)->getStatusCode() === 403) {
+//                print_r("403");
+//            }
 
             $this->writeHtml($this->htmlAsStr);
         }
         //print_r($res2);
     }
 
-    public function createNameChange()
+    public function createDir($path): void
     {
+        if (!file_exists($path)) {
+            if (!@mkdir($path)) {
+                $this->logger->error(
+                    "Failed to create dir \"" . $path . "\""
+                );
+            }
+        }
     }
-
 
     public function writeHtml(string $htmlAsStr): void
     {
@@ -122,12 +132,10 @@ class PageLoader
         if ($putRes === false) {
             $this->logger->error("Failed to write \"$this->outputNameWithPath.html\"");
             throw new \Exception(
-                "Failed to write \"$this->outputNameWithPath.html\"\n",
-                1
+                "Failed to write \"$this->outputNameWithPath.html\"\n"
             );
         }
     }
-
 
     public function getDownloadedHtmlPath()
     {
@@ -142,8 +150,8 @@ class PageLoader
     // get parsing
     public function getImages(string $htmlAsStr): array
     {
-        $imgSearch = preg_match_all('/(?<=")[^"]+\.(png|jpg)(?=")/', $htmlAsStr, $images);
-        return ($imgSearch > 0) ? $images[0] : [];
+        $imgSearch = preg_match_all('/(?<=<img).+((?<=src=")[^"]+\.(png|jpg))(?=")/', $htmlAsStr, $images);
+        return ($imgSearch > 0) ? $images[1] : [];
     }
 
     public function getScripts(string $htmlAsStr): array
@@ -167,5 +175,10 @@ class PageLoader
         return strtr("{$host}{$path}", ['.' => '-', '/' => '-', '\\' => '-']);
     }
 
+    // Проверка правильности URL
+    public function isUrl($url): bool
+    {
+        return filter_var($url, \FILTER_VALIDATE_URL) !== false;
+    }
 
 }

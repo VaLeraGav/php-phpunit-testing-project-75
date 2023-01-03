@@ -4,7 +4,7 @@ use App\PageLoader;
 
 function downloadPage(string $url, string $outputDir)
 {
-        try {
+    try {
         $loader = new PageLoader($url, $outputDir);
 
         // start processing
@@ -12,7 +12,9 @@ function downloadPage(string $url, string $outputDir)
 
         $resource = $loader->getDownloadedHtmlPath();
     } catch (\Exception $e) {
-        throw new \Exception('Caught Exception: ', $e->getMessage());
+        print_r($e->getMessage());
+        return null;
+        //throw new \Exception('Caught Exception: ', $e->getMessage());
     }
 
     // Page was successfully downloaded into  /mnt/c/Users/Ucer/Desktop/Hexlet/php-testing-project-75/tmp/ru-hexlet-io-courses.html.html
