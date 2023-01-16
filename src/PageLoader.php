@@ -110,7 +110,7 @@ class PageLoader
 //                print_r("403");
 //            }
 
-            $this->writeHtml($this->htmlAsStr);
+            $this->putHtmlContentFile($this->htmlAsStr);
         }
         //print_r($res2);
     }
@@ -126,7 +126,7 @@ class PageLoader
         }
     }
 
-    public function writeHtml(string $htmlAsStr): void
+    public function putHtmlContentFile(string $htmlAsStr): void
     {
         $putRes = @file_put_contents($this->outputNameWithPath . '.html', $htmlAsStr);
         if ($putRes === false) {
@@ -150,19 +150,19 @@ class PageLoader
     // get parsing
     public function getImages(string $htmlAsStr): array
     {
-        $imgSearch = preg_match_all('/(?<=<img).+((?<=src=")[^"]+\.(png|jpg))(?=")/', $htmlAsStr, $images);
+        $imgSearch = preg_match_all('/(?<=<img)*+((?<=src=")[^"]+\.(png|jpg))(?=")/', $htmlAsStr, $images);
         return ($imgSearch > 0) ? $images[1] : [];
     }
 
     public function getScripts(string $htmlAsStr): array
     {
-        $scrSearch = preg_match_all('/(?<=<script src=")[^"]+(?=")/', $htmlAsStr, $scripts);
+        $scrSearch = preg_match_all('/(?<=<script)*+(?<=src=")[^"]+(?=")/', $htmlAsStr, $scripts);
         return ($scrSearch > 0) ? $scripts[0] : [];
     }
 
     public function getLinks(string $htmlAsStr): array
     {
-        $linkSearch = preg_match_all('/(?<=<link).+((?<=href=")[^"]+)(?=")/', $htmlAsStr, $links);
+        $linkSearch = preg_match_all('/(?<=<link)*+((?<=href=")[^"]+)(?=")/', $htmlAsStr, $links);
         return ($linkSearch > 0) ? $links[1] : [];
     }
 
