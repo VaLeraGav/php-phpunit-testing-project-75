@@ -43,9 +43,22 @@ class PageLoader
 
         $this->outputNameWithPath = $this->outDir . $this->normUrl;
 
-        $links = $this->getReplacementLinks();
+        //загрузка html
+        $this->putHtmlContentFile($this->htmlAsStr, $this->outputNameWithPath);
 
-        $this->createLocalResources($links);
+        $dirtyLinks = $this->getReplacementLinks();
+        $cleanLinks = $this->buildCorrectPathUrls($dirtyLinks);
+
+        // убирает лишнии ссылки для замены
+        foreach ($cleanLinks as $key => $val) {
+            $filterUrl[$key] = $dirtyLinks[$key];
+        }
+
+        $this->replacingResourcesHtml(array_values($filterUrl), array_values($cleanLinks));
+
+        $this->createLocalResources($cleanLinks);
+
+
         //$this->putHtmlContentFile($this->htmlAsStr);
     }
 
@@ -65,10 +78,6 @@ class PageLoader
             return null;
         }
 
-        // не работать поиск относительный https://habr.com/js/ads.js
-        // так как в файле он находиться как /js/ads.js
-        $checkedUrls = $this->buildCorrectPathUrls($files);
-
         $filesDir = $this->outputNameWithPath . '_files';
         $nameDir = $this->normUrl . '_files';
 
@@ -76,7 +85,7 @@ class PageLoader
         $this->createDir($filesDir);
 
         // вынести в отдельный метод
-        foreach ($checkedUrls as $file) {
+        foreach ($files as $file) {
             $pathParts = pathinfo($file);
             $exten = $pathParts['extension'] ?? null;
 
@@ -84,7 +93,7 @@ class PageLoader
             $fullDir = $filesDir . '/';
 
             if (isset($exten)) {
-                $this->replacingResources($file, $nameDir . '/' . $exten . '/' . $nameFile . '.' . $exten);
+                $this->replacingResourcesHtml($file, $nameDir . '/' . $exten . '/' . $nameFile . '.' . $exten);
 
                 if ($createExtension) {
                     $this->createDir($filesDir . '/' . $exten);
@@ -93,26 +102,31 @@ class PageLoader
 
                 $fullDir .= $nameFile . '.' . $exten;
             } else {
-                $this->replacingResources($file, $nameDir . '/' . $nameFile);
+                $this->replacingResourcesHtml($file, $nameDir . '/' . $nameFile);
 
                 $fullDir .= $nameFile;
             }
-            $this->putHtmlContentFile($this->htmlAsStr);
+            $this->putHtmlContentFile($this->htmlAsStr, $this->outputNameWithPath);
 
-            $this->client->request('GET', $file, ['sink' => $fullDir, 'http_errors' => false]);
+            $this->uploadFiles($file, $fullDir);
+        }
+    }
+
+    public function uploadFiles($file, $dir)
+    {
+        // https://www.googletagservices.com/tag/js/gpt.js  после ошибки загрузка перестает
+        $this->client->request('GET', $file, ['sink' => $dir, 'http_errors' => false]);
 //              выводит ошибки 403 (curl)
 //            if(@$this->client->get($file)->getStatusCode() === 403) {
 //                print_r("403");
 //            }
-            // из за этой ошибки html не создается
 
-        }
     }
 
-    public function replacingResources($fileNameForSearch, $path): void
+    public function replacingResourcesHtml($fileNameSearch, $path): void
     {
         $this->htmlAsStr = str_replace(
-            $fileNameForSearch,
+            $fileNameSearch,
             $path,
             $this->htmlAsStr
         );
@@ -136,7 +150,7 @@ class PageLoader
 
             return $itemUrl;
         }, $urls);
-        print_r($buildUrl);
+
         return array_filter($buildUrl, fn($item) => $this->isUrl($item));
     }
 
@@ -151,13 +165,13 @@ class PageLoader
         }
     }
 
-    public function putHtmlContentFile(string $htmlAsStr): void
+    public function putHtmlContentFile(string $htmlAsStr, $placeDownload): void
     {
-        $putRes = @file_put_contents($this->outputNameWithPath . '.html', $htmlAsStr);
+        $putRes = @file_put_contents($placeDownload . '.html', $htmlAsStr);
         if ($putRes === false) {
-            $this->logger->error("Failed to write \"$this->outputNameWithPath.html\"");
+            $this->logger->error("Failed to write \"$placeDownload.html\"");
             throw new \Exception(
-                "Failed to write \"$this->outputNameWithPath.html\"\n"
+                "Failed to write \"$placeDownload.html\"\n"
             );
         }
     }
