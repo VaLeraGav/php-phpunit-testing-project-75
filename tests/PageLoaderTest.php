@@ -19,7 +19,7 @@ class PageLoaderTest extends TestCase
     {
         $this->outputDir = __DIR__;
         $this->url = 'https://php.net';
-        $this->unreachableAddress = 'http://test.test';
+        $this->unreachableAddress = 'http://mydomain.test';
 
         $this->pl = new PageLoader($this->unreachableAddress, $this->outputDir);
         $this->html = (string)file_get_contents($this->outputDir . '/fixtures/mypage.html');
@@ -57,5 +57,23 @@ class PageLoaderTest extends TestCase
             '/assets/index-1.js',
         ];
         $this->assertEquals($scripts, $this->pl->getScripts($this->html));
+    }
+
+    public function test()
+    {
+        $urls = [
+            'https://js.stripe.com/v3/',
+            'http://mydomain.test/assets/img.png',
+            '//www.googletagservices.com/tag/js/gpt.js',
+            '/assets/index.js',
+        ];
+
+        $correctUrls = [
+            'https://js.stripe.com/v3/',
+            'http://mydomain.test/assets/img.png',
+            'http://www.googletagservices.com/tag/js/gpt.js',
+            'http://mydomain.test/assets/index.js',
+        ];
+        $this->assertEquals($correctUrls, $this->pl->buildCorrectPathUrls($urls));
     }
 }
