@@ -12,7 +12,7 @@ class PageLoader
     public string $url;
     public string $outDir;
     public string $outputNameWithPath;
-    public string $htmlAsStr;
+    private string $htmlAsStr;
     public string $normUrl;
 
     public GuzzleClient $client;
@@ -35,6 +35,8 @@ class PageLoader
         $this->client = new GuzzleClient();
     }
 
+
+    // разбить на части чтобы можно было тестировать
     public function filesProcessing()
     {
         $this->htmlAsStr = $this->getHtmlData();
@@ -46,7 +48,7 @@ class PageLoader
         //загрузка html
         $this->putHtmlContentFile($this->htmlAsStr, $this->outputNameWithPath);
 
-        $dirtyLinks = $this->getReplacementLinks();
+        $dirtyLinks = $this->getReplacementLinks($this->htmlAsStr);
         $cleanLinks = $this->buildCorrectPathUrls($dirtyLinks);
 
         // убирает лишнии ссылки для замены
@@ -54,65 +56,70 @@ class PageLoader
             $filterUrl[$key] = $dirtyLinks[$key];
         }
 
-        $this->replacingResourcesHtml(array_values($filterUrl), array_values($cleanLinks));
+        $this->htmlAsStr = $this->replacingResourcesHtml($filterUrl, $cleanLinks, $this->htmlAsStr);
 
-        $this->createLocalResources($cleanLinks);
+        $nameFailes = $this->createLocalResources($cleanLinks);
 
+        $this->htmlAsStr = $this->replacingResourcesHtml($cleanLinks, $nameFailes, $this->htmlAsStr);
 
-        //$this->putHtmlContentFile($this->htmlAsStr);
+        $this->putHtmlContentFile($this->htmlAsStr, $this->outputNameWithPath);
+
+        // загружает не все
+        $this->uploadFiles($cleanLinks, $nameFailes);
+
     }
 
-    public function getReplacementLinks()
+    public function getReplacementLinks($htmlAsStr): array
     {
-        $regIm = $this->getImages($this->htmlAsStr);
-        $regLin = $this->getLinks($this->htmlAsStr);
-        $regScr = $this->getScripts($this->htmlAsStr);
+        $regIm = $this->getImages($htmlAsStr);
+        $regLin = $this->getLinks($htmlAsStr);
+        $regScr = $this->getScripts($htmlAsStr);
 
         return array_merge($regIm, $regLin, $regScr);
     }
 
-    // создает файлы, а также папки для разных расширений
-    public function createLocalResources(array $files, bool $createExtension = true)
+    // создает dir, а также папки для разных расширений, возвращает имя файла до $this->outputNameWithPath
+    public function createLocalResources(array $files, bool $createExtension = true): array|null
     {
         if (empty($files)) {
             return null;
         }
 
-        $filesDir = $this->outputNameWithPath . '_files';
+        $rootDir = $this->outputNameWithPath . '_files';
         $nameDir = $this->normUrl . '_files';
 
         // создание папки _files
-        $this->createDir($filesDir);
+        $this->createDir($rootDir);
 
-        // вынести в отдельный метод
         foreach ($files as $file) {
             $pathParts = pathinfo($file);
-            $exten = $pathParts['extension'] ?? null;
+            $expansion = $pathParts['extension'] ?? null;
 
             $nameFile = $this->normUrl . $this->normalizeUrl($file);
-            $fullDir = $filesDir . '/';
 
-            if (isset($exten)) {
-                $this->replacingResourcesHtml($file, $nameDir . '/' . $exten . '/' . $nameFile . '.' . $exten);
+            if (isset($expansion)) {
+                $dir[] = $nameDir . '/' . $expansion . '/' . $nameFile . '.' . $expansion;
 
                 if ($createExtension) {
-                    $this->createDir($filesDir . '/' . $exten);
-                    $fullDir .= $exten . '/';
+                    $this->createDir($rootDir . '/' . $expansion);
                 }
-
-                $fullDir .= $nameFile . '.' . $exten;
             } else {
-                $this->replacingResourcesHtml($file, $nameDir . '/' . $nameFile);
-
-                $fullDir .= $nameFile;
+                $dir[] = $nameDir . '/' . $nameFile;
             }
-            $this->putHtmlContentFile($this->htmlAsStr, $this->outputNameWithPath);
+        }
+        return $dir;
+    }
 
-            $this->uploadFiles($file, $fullDir);
+    public function uploadFiles($urls, $nameFiles): void
+    {
+        $rootDir = $this->outDir;
+
+        foreach (array_values($urls) as $k => $url) {
+            $this->uploadFile($url, $rootDir . $nameFiles[$k]);
         }
     }
 
-    public function uploadFiles($file, $dir)
+    public function uploadFile($file, $dir)
     {
         // https://www.googletagservices.com/tag/js/gpt.js  после ошибки загрузка перестает
         $this->client->request('GET', $file, ['sink' => $dir, 'http_errors' => false]);
@@ -123,12 +130,12 @@ class PageLoader
 
     }
 
-    public function replacingResourcesHtml($fileNameSearch, $path): void
+    public function replacingResourcesHtml($fileNameSearch, $path, $htmlAsStr): array|string
     {
-        $this->htmlAsStr = str_replace(
+        return str_replace(
             $fileNameSearch,
             $path,
-            $this->htmlAsStr
+            $htmlAsStr
         );
     }
 
@@ -176,12 +183,17 @@ class PageLoader
         }
     }
 
-    public function getDownloadedHtmlPath()
+    public function getDownloadedHtmlPath(): string
     {
         return $this->outputNameWithPath . '.html';
     }
 
-    public function getHtmlData()
+    public function getHtmlAsStr(): string
+    {
+        return $this->htmlAsStr;
+    }
+
+    public function getHtmlData(): string
     {
         return $this->client->get($this->url)->getBody()->getContents();
     }
@@ -209,7 +221,7 @@ class PageLoader
     }
 
     //
-    public function normalizeUrl(string $url)
+    public function normalizeUrl(string $url): string
     {
         $host = (string)parse_url($url, PHP_URL_HOST);
         $path = (string)parse_url($url, PHP_URL_PATH);
