@@ -43,14 +43,19 @@ class PageLoader
 
         $this->outputNameWithPath = $this->outDir . $this->normUrl;
 
+        $links = $this->getReplacementLinks();
+
+        $this->createLocalResources($links);
+        //$this->putHtmlContentFile($this->htmlAsStr);
+    }
+
+    public function getReplacementLinks()
+    {
         $regIm = $this->getImages($this->htmlAsStr);
         $regLin = $this->getLinks($this->htmlAsStr);
         $regScr = $this->getScripts($this->htmlAsStr);
 
-        $reg = array_merge($regIm, $regLin, $regScr);
-        $this->createLocalResources($reg);
-        // FileUtils::create($date, $fullPath, $this->outputDir);
-
+        return array_merge($regIm, $regLin, $regScr);
     }
 
     // создает файлы, а также папки для разных расширений
@@ -60,13 +65,67 @@ class PageLoader
             return null;
         }
 
-        $splitUrl = explode('/', $this->url);
+        // не работать поиск относительный https://habr.com/js/ads.js
+        // так как в файле он находиться как /js/ads.js
+        $checkedUrls = $this->buildCorrectPathUrls($files);
+
+        $filesDir = $this->outputNameWithPath . '_files';
+        $nameDir = $this->normUrl . '_files';
+
+        // создание папки _files
+        $this->createDir($filesDir);
 
         // вынести в отдельный метод
-        $buildCorrectPathUrl = array_map(function ($itemUrl) use ($splitUrl) {
+        foreach ($checkedUrls as $file) {
+            $pathParts = pathinfo($file);
+            $exten = $pathParts['extension'] ?? null;
+
+            $nameFile = $this->normUrl . $this->normalizeUrl($file);
+            $fullDir = $filesDir . '/';
+
+            if (isset($exten)) {
+                $this->replacingResources($file, $nameDir . '/' . $exten . '/' . $nameFile . '.' . $exten);
+
+                if ($createExtension) {
+                    $this->createDir($filesDir . '/' . $exten);
+                    $fullDir .= $exten . '/';
+                }
+
+                $fullDir .= $nameFile . '.' . $exten;
+            } else {
+                $this->replacingResources($file, $nameDir . '/' . $nameFile);
+
+                $fullDir .= $nameFile;
+            }
+            $this->putHtmlContentFile($this->htmlAsStr);
+
+            $this->client->request('GET', $file, ['sink' => $fullDir, 'http_errors' => false]);
+//              выводит ошибки 403 (curl)
+//            if(@$this->client->get($file)->getStatusCode() === 403) {
+//                print_r("403");
+//            }
+            // из за этой ошибки html не создается
+
+        }
+    }
+
+    public function replacingResources($fileNameForSearch, $path): void
+    {
+        $this->htmlAsStr = str_replace(
+            $fileNameForSearch,
+            $path,
+            $this->htmlAsStr
+        );
+    }
+
+    public function buildCorrectPathUrls($urls): array
+    {
+        $splitUrl = explode('/', $this->url);
+        $protocol = $splitUrl[0];
+        $domain = $splitUrl[2];
+
+        $buildUrl = array_map(function ($itemUrl) use ($splitUrl, $protocol, $domain) {
             // $itemUrl относительный путь
-            $protocol = $splitUrl[0];
-            $domain = $splitUrl[2];
             if (str_starts_with($itemUrl, '/')) {
                 if (str_starts_with($itemUrl, '//')) {
                     $itemUrl = $protocol . $itemUrl;
@@ -76,58 +135,9 @@ class PageLoader
             }
 
             return $itemUrl;
-        }, $files);
-
-        $checkedUrl = array_filter($buildCorrectPathUrl, function ($item) {
-            return $this->isUrl($item);
-        });
-
-        $filesDir = $this->outputNameWithPath . '_files';
-        $nameDir = $this->normUrl . '_files';
-
-        // создание папки _files
-        $this->createDir($filesDir);
-
-        // вынести в отдельный метод
-        foreach ($checkedUrl as $file) {
-            $pathParts = pathinfo($file);
-            $exten = $pathParts['extension'] ?? null;
-
-            $nameFile = $this->normUrl . $this->normalizeUrl($file);
-            $fullDir = $filesDir . '/';
-
-            if (isset($exten)) {
-                if ($createExtension) {
-                    $this->createDir($filesDir . '/' . $exten);
-                    $fullDir .= $exten . '/';
-                }
-                $fullDir .= $nameFile . '.' . $exten;
-
-                // заменяет юрл
-                $this->htmlAsStr = str_replace(
-                    $file,
-                    $nameDir . '/' . $exten . '/' . $nameFile . '.' . $exten,
-                    $this->htmlAsStr
-                );
-            } else {
-                $fullDir .= $nameFile;
-
-                // заменяет юрл
-                $this->htmlAsStr = str_replace(
-                    $file,
-                    $nameDir . '/' . $nameFile,
-                    $this->htmlAsStr
-                );
-            }
-            $this->client->request('GET', $file, ['sink' => $fullDir, 'http_errors' => false]);
-//              выводит ошибки 403 (curl)
-//            if(@$this->client->get($file)->getStatusCode() === 403) {
-//                print_r("403");
-//            }
-
-            $this->putHtmlContentFile($this->htmlAsStr);
-        }
-        //print_r($res2);
+        }, $urls);
+        print_r($buildUrl);
+        return array_filter($buildUrl, fn($item) => $this->isUrl($item));
     }
 
     public function createDir($path): void
