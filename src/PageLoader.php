@@ -60,12 +60,27 @@ class PageLoader
             return null;
         }
 
-        // Убирает пути до файла в html указанные относительно
-        // добавить возможность $fileRoot = $this->url . $file;
-        // но root может начинаться с https://docs.guzzlephp.org/en/stable/request-options.html#sink
-        // как вариант разбить ссылку и взять из нее root, а потом подставлять,
-        // но есть вероятность, что на сайте root другой
-        $files = array_filter($files, fn($url) => $this->isUrl($url));
+        $splitUrl = explode('/', $this->url);
+
+        // вынести в отдельный метод
+        $buildCorrectPathUrl = array_map(function ($itemUrl) use ($splitUrl) {
+            // $itemUrl относительный путь
+            $protocol = $splitUrl[0];
+            $domain = $splitUrl[2];
+            if (str_starts_with($itemUrl, '/')) {
+                if (str_starts_with($itemUrl, '//')) {
+                    $itemUrl = $protocol . $itemUrl;
+                } else {
+                    $itemUrl = $protocol . "//" . $domain . $itemUrl;
+                }
+            }
+
+            return $itemUrl;
+        }, $files);
+
+        $checkedUrl = array_filter($buildCorrectPathUrl, function ($item) {
+            return $this->isUrl($item);
+        });
 
         $filesDir = $this->outputNameWithPath . '_files';
         $nameDir = $this->normUrl . '_files';
@@ -73,8 +88,8 @@ class PageLoader
         // создание папки _files
         $this->createDir($filesDir);
 
-
-        foreach ($files as $file) {
+        // вынести в отдельный метод
+        foreach ($checkedUrl as $file) {
             $pathParts = pathinfo($file);
             $exten = $pathParts['extension'] ?? null;
 
@@ -150,19 +165,22 @@ class PageLoader
     // get parsing
     public function getImages(string $htmlAsStr): array
     {
-        $imgSearch = preg_match_all('/(?<=<img)*+((?<=src=")[^"]+\.(png|jpg))(?=")/', $htmlAsStr, $images);
-        return ($imgSearch > 0) ? $images[1] : [];
+        $imgSearch = preg_match_all('/(?<=")[^"]+\.(png|jpg)(?=")/', $htmlAsStr, $images);
+        return ($imgSearch > 0) ? $images[0] : [];
     }
 
     public function getScripts(string $htmlAsStr): array
     {
-        $scrSearch = preg_match_all('/(?<=<script)*+(?<=src=")[^"]+(?=")/', $htmlAsStr, $scripts);
-        return ($scrSearch > 0) ? $scripts[0] : [];
+        //$scrSearch = preg_match_all('/(?<=<script).+((?<=src=")[^"]+)(?=")/', $htmlAsStr, $scripts);
+        $scrSearch = preg_match_all('/<script.*?src="(.*?)"/', $htmlAsStr, $scripts);
+        return ($scrSearch > 0) ? $scripts[1] : [];
     }
 
     public function getLinks(string $htmlAsStr): array
     {
-        $linkSearch = preg_match_all('/(?<=<link)*+((?<=href=")[^"]+)(?=")/', $htmlAsStr, $links);
+        //$linkSearch = preg_match_all('/(?<=<link).+((?<=href=")[^"]+)(?=")/', $htmlAsStr, $links);
+        $linkSearch = preg_match_all('/<link.*?href="(.*?)"/', $htmlAsStr, $links);
+
         return ($linkSearch > 0) ? $links[1] : [];
     }
 
